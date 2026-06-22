@@ -1,0 +1,81 @@
+// ==========================================
+// 1. THE POP-UP & NEW TAB SHIELD
+// ==========================================
+
+// Trap Method A: Neutralize standard window.open()
+window.open = function(url) {
+  console.log(`🛡️ Blocked sender from opening tab: ${url}`);
+  // Return a safe "mock" window object so Gmail's backend JS doesn't crash looking for it
+  return { close: () => {}, focus: () => {}, closed: false };
+};
+
+// Trap Method B: Intercept rogue anchor tags generated in the background
+window.addEventListener('click', function(event) {
+  const link = event.target.closest('a');
+  // If a link is triggered that points somewhere outside of Google:
+  if (link && link.href && !link.href.includes('google.com')) {
+    event.preventDefault();     // Stop the tab from opening
+    event.stopPropagation();    // Kill the event dead in its tracks
+    console.log(`🛡️ Blocked rogue link redirect to: ${link.href}`);
+  }
+}, true); // 'true' forces this listener to run first before Gmail can execute it
+
+
+// ==========================================
+// 2. THE OPTIMIZED POLLING SCRIPT
+// ==========================================
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function waitForElement(selector, maxWait = 1500) {
+  const startTime = Date.now();
+  while (Date.now() - startTime < maxWait) {
+    const el = document.querySelector(selector);
+    if (el && el.offsetParent !== null) return el; 
+    await sleep(50);
+  }
+  return null;
+}
+
+async function waitForElementToDisappear(selector, maxWait = 1500) {
+  const startTime = Date.now();
+  while (Date.now() - startTime < maxWait) {
+    const el = document.querySelector(selector);
+    if (!el || el.offsetParent === null) return true; 
+    await sleep(50);
+  }
+  return false;
+}
+
+async function unsubscribeAll() {
+  console.log('Starting high-speed shielded unsubscribe...');
+  
+  while (true) {
+    const rowButtons = Array.from(document.querySelectorAll('tr[role="row"] button[aria-label="Unsubscribe"]'))
+      .filter(btn => btn.innerText.includes('Unsubscribe') && btn.offsetParent !== null);
+
+    if (rowButtons.length === 0) {
+      console.log('🎉 All visible subscriptions cleared!');
+      break;
+    }
+
+    const btn = rowButtons[0];
+    console.log(`Processing item... (${rowButtons.length} remaining)`);
+    
+    btn.click();
+    
+    const confirmBtn = await waitForElement('[role="alertdialog"] button[data-mdc-dialog-action="ok"]', 1500);
+    
+    if (confirmBtn) {
+      confirmBtn.click();
+      await waitForElementToDisappear('[role="alertdialog"]', 1500);
+    }
+
+    const row = btn.closest('tr');
+    if (row) row.remove();
+
+    await sleep(100);
+  }
+}
+
+unsubscribeAll();
